@@ -17,6 +17,12 @@
 2. Side panel opens when toolbar icon clicked
 3. Content script can communicate with side panel
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Manifest and icons
+- [ ] 01-02-PLAN.md — Background messaging infrastructure
+
 ---
 
 ## Phase 2: Platform Detection & Image Extraction
@@ -69,6 +75,12 @@ Plans:
 5. Each image has visible checkbox (top-right), checked by default
 6. "一键下载" button visible and styled at bottom
 
+**Plans:** 2 plans
+
+Plans:
+- [x] 03-01-PLAN.md — UI structure, grid, checkboxes, modal (Wave 1)
+- [x] 03-02-PLAN.md — Messaging integration, download trigger, polish (Wave 2)
+
 ---
 
 ## Phase 4: Download with JPG Conversion
@@ -115,4 +127,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-05-11*
-*Last updated: 2026-05-11 after Phase 2 planning*
+*Last updated: 2026-05-12 after Phase 3 planning*
