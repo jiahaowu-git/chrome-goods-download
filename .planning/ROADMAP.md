@@ -36,6 +36,12 @@
 2. Non-detail pages show clear error message
 3. All main images and detail images extracted and grouped
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Platform detection and error messaging
+- [ ] 02-02-PLAN.md — Image extraction (main images + detail images)
+
 ---
 
 ## Phase 3: Side Panel UI
@@ -101,12 +107,12 @@
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 1 | Extension Shell | 4 | ○ |
-| 2 | Platform Detection & Image Extraction | 6 | ○ |
+| 1 | Extension Shell | 4 | ● | 2026-05-11 |
+| 2 | Platform Detection & Image Extraction | 6 | ● | 2026-05-12 |
 | 3 | Side Panel UI | 11 | ○ |
 | 4 | Download with JPG Conversion | 6 | ○ |
 | 5 | Integration & Testing | 5 | ○ |
 
 ---
 *Roadmap created: 2026-05-11*
-*Last updated: 2026-05-11 after initial creation*
+*Last updated: 2026-05-11 after Phase 2 planning*
