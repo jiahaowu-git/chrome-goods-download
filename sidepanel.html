@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>下载图片</title>
+  <script src="https://code.iconify.design/2/2.2.0/iconify.min.js"></script>
   <style>
     * {
       margin: 0;
@@ -14,18 +15,487 @@
       background-color: #1a1a1a;
       color: #f5f5f5;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      padding: 16px;
       min-height: 100vh;
+      overflow-x: hidden;
     }
+    #app {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding-bottom: 88px;
+    }
+
+    /* Panel Header */
+    .panel-header {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      background: #1a1a1a;
+      border-bottom: 1px solid #3a3a3a;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .panel-header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f5f5f5;
+    }
+    .image-count {
+      font-size: 12px;
+      color: #a0a0a0;
+    }
+
+    /* Section Headers */
+    .section-header {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 16px;
+      background: #2a2a2a;
+      border-bottom: 1px solid #3a3a3a;
+      cursor: pointer;
+      user-select: none;
+    }
+    .section-header:hover {
+      background: #333333;
+    }
+    .section-header .chevron {
+      color: #a0a0a0;
+      transition: transform 200ms ease-out;
+    }
+    .section-header .chevron.collapsed {
+      transform: rotate(-90deg);
+    }
+    .section-header span {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f5f5f5;
+    }
+    .count-badge {
+      font-size: 12px;
+      color: #a0a0a0;
+      margin-left: auto;
+    }
+
+    /* Section Content & Collapse */
+    .section-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 200ms ease-out;
+    }
+    .section-content.expanded {
+      max-height: 1000px;
+    }
+
+    /* Image Grid */
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      padding: 16px;
+    }
+    .image-item {
+      aspect-ratio: 1 / 1;
+      border-radius: 8px;
+      border: 1px solid #3a3a3a;
+      overflow: hidden;
+      position: relative;
+      background: #2a2a2a;
+      cursor: pointer;
+    }
+    .image-item:hover {
+      border-color: #3b82f6;
+      transform: scale(1.02);
+    }
+    .image-item:active {
+      transform: scale(0.98);
+    }
+    .image-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* Checkbox */
+    .checkbox {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      border: 2px solid #3a3a3a;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .checkbox:hover {
+      border-color: #5a5a5a;
+    }
+    .checkbox.checked {
+      background: #3b82f6;
+      border-color: #3b82f6;
+    }
+    .checkbox.checked:hover {
+      background: #2563eb;
+    }
+    .checkbox .iconify-check {
+      display: none;
+      color: white;
+      font-size: 14px;
+    }
+    .checkbox.checked .iconify-check {
+      display: block;
+    }
+
+    /* Panel Footer */
+    .panel-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 16px;
+      background: #1a1a1a;
+      border-top: 1px solid #3a3a3a;
+    }
+    .download-btn {
+      width: 100%;
+      height: 48px;
+      background: #3b82f6;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 150ms ease-out;
+    }
+    .download-btn:hover {
+      background: #2563eb;
+    }
+    .download-btn:active {
+      background: #1d4ed8;
+    }
+    .download-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .download-btn .iconify {
+      font-size: 20px;
+    }
+
+    /* Modal */
+    #modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.85);
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 150ms ease-out;
+    }
+    #modal.hidden {
+      opacity: 0;
+    }
+    #modal.visible {
+      opacity: 1;
+    }
+    .modal-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    .modal-content {
+      position: relative;
+      z-index: 2;
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-content img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    .modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.6);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+      transition: background 150ms ease-out;
+    }
+    .modal-close:hover {
+      background: rgba(0,0,0,0.8);
+    }
+    .modal-close .iconify {
+      color: white;
+      font-size: 24px;
+    }
+
+    /* Status Messages */
     .status {
       text-align: center;
       padding: 40px 20px;
       opacity: 0.7;
+      font-size: 14px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 24px 16px;
+      color: #a0a0a0;
+      font-size: 14px;
     }
   </style>
 </head>
-<body id="sidepanel-body">
-  <div id="loading" class="status">Loading...</div>
-  <div id="app"></div>
+<body>
+  <div id="app">
+    <header class="panel-header">
+      <h1>下载图片</h1>
+      <span class="image-count">已选 <span id="selected-count">0</span> / <span id="total-count">0</span> 张</span>
+    </header>
+
+    <!-- Main Images Section -->
+    <section id="main-images-section">
+      <div class="section-header" data-section="main" aria-expanded="true">
+        <span class="iconify chevron" data-icon="material-symbols:chevron-down"></span>
+        <span>主图</span>
+        <span class="count-badge" id="main-count-badge">(0)</span>
+      </div>
+      <div class="section-content expanded" id="main-content">
+        <div class="image-grid" id="main-grid"></div>
+      </div>
+    </section>
+
+    <!-- Detail Images Section -->
+    <section id="detail-images-section">
+      <div class="section-header" data-section="detail" aria-expanded="true">
+        <span class="iconify chevron" data-icon="material-symbols:chevron-down"></span>
+        <span>详情图</span>
+        <span class="count-badge" id="detail-count-badge">(0)</span>
+      </div>
+      <div class="section-content expanded" id="detail-content">
+        <div class="image-grid" id="detail-grid"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="panel-footer">
+    <button class="download-btn" id="download-btn" disabled>
+      <span class="iconify" data-icon="material-symbols:download"></span>
+      一键下载
+    </button>
+  </footer>
+
+  <!-- Modal -->
+  <div id="modal" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-content">
+      <img id="modal-image" src="" alt="Full size preview">
+    </div>
+    <button class="modal-close" id="modal-close" aria-label="Close">
+      <span class="iconify" data-icon="material-symbols:close"></span>
+    </button>
+  </div>
+
+  <script>
+    // ==========================================
+    // TASK 2: Collapsible sections with chevron rotation
+    // ==========================================
+    let isMainSectionOpen = true;
+    let isDetailSectionOpen = true;
+
+    const mainSectionHeader = document.querySelector('[data-section="main"]');
+    const detailSectionHeader = document.querySelector('[data-section="detail"]');
+    const mainContent = document.getElementById('main-content');
+    const detailContent = document.getElementById('detail-content');
+
+    function toggleSection(section) {
+      if (section === 'main') {
+        isMainSectionOpen = !isMainSectionOpen;
+        mainSectionHeader.setAttribute('aria-expanded', isMainSectionOpen);
+        mainContent.classList.toggle('expanded', isMainSectionOpen);
+        mainSectionHeader.querySelector('.chevron').classList.toggle('collapsed', !isMainSectionOpen);
+      } else {
+        isDetailSectionOpen = !isDetailSectionOpen;
+        detailSectionHeader.setAttribute('aria-expanded', isDetailSectionOpen);
+        detailContent.classList.toggle('expanded', isDetailSectionOpen);
+        detailSectionHeader.querySelector('.chevron').classList.toggle('collapsed', !isDetailSectionOpen);
+      }
+    }
+
+    mainSectionHeader.addEventListener('click', () => toggleSection('main'));
+    detailSectionHeader.addEventListener('click', () => toggleSection('detail'));
+
+    // ==========================================
+    // TASK 3: Image grid rendering with checkboxes
+    // ==========================================
+    let mainImages = [];
+    let detailImages = [];
+
+    function updateCounts() {
+      const mainChecked = mainImages.filter(img => img.checked).length;
+      const detailChecked = detailImages.filter(img => img.checked).length;
+      const totalSelected = mainChecked + detailChecked;
+      const totalImages = mainImages.length + detailImages.length;
+
+      document.getElementById('selected-count').textContent = totalSelected;
+      document.getElementById('total-count').textContent = totalImages;
+      document.getElementById('main-count-badge').textContent = `(${mainImages.length})`;
+      document.getElementById('detail-count-badge').textContent = `(${detailImages.length})`;
+
+      const downloadBtn = document.getElementById('download-btn');
+      downloadBtn.disabled = totalSelected === 0;
+    }
+
+    function createImageItem(image, section) {
+      const item = document.createElement('div');
+      item.className = 'image-item';
+      item.dataset.id = image.id;
+
+      const img = document.createElement('img');
+      img.src = image.url;
+      img.alt = 'Product image';
+      img.loading = 'lazy';
+      img.onerror = function() {
+        this.src = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%232a2a2a%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23666%22 font-size=%2212%22>!</text></svg>';
+      };
+
+      const checkbox = document.createElement('div');
+      checkbox.className = 'checkbox' + (image.checked ? ' checked' : '');
+      checkbox.dataset.id = image.id;
+      checkbox.innerHTML = '<span class="iconify iconify-check" data-icon="material-symbols:check"></span>';
+
+      // Checkbox click - toggle selection without opening modal
+      checkbox.addEventListener('click', (e) => {
+        e.stopPropagation();
+        image.checked = !image.checked;
+        checkbox.classList.toggle('checked', image.checked);
+        updateCounts();
+      });
+
+      // Image item click - open modal (not when clicking checkbox)
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.checkbox')) return;
+        openModal(image.url);
+      });
+
+      item.appendChild(img);
+      item.appendChild(checkbox);
+      return item;
+    }
+
+    function renderSection(section, images) {
+      const gridId = section === 'main' ? 'main-grid' : 'detail-grid';
+      const grid = document.getElementById(gridId);
+      grid.innerHTML = '';
+
+      if (images.length === 0) {
+        grid.innerHTML = '<div class="empty-state">暂无图片</div>';
+        return;
+      }
+
+      images.forEach(image => {
+        grid.appendChild(createImageItem(image, section));
+      });
+    }
+
+    // ==========================================
+    // TASK 4: Modal open/close interactions
+    // ==========================================
+    let modalOpen = false;
+    let modalImageUrl = null;
+
+    const modal = document.getElementById('modal');
+    const modalImage = document.getElementById('modal-image');
+    const modalBackdrop = document.getElementById('modal-backdrop');
+    const modalClose = document.getElementById('modal-close');
+
+    function openModal(imageUrl) {
+      modalOpen = true;
+      modalImageUrl = imageUrl;
+      modalImage.src = imageUrl;
+      modal.style.display = 'flex';
+      // Force reflow for animation
+      modal.offsetHeight;
+      modal.classList.remove('hidden');
+      modal.classList.add('visible');
+    }
+
+    function closeModal() {
+      if (!modalOpen) return;
+      modal.classList.remove('visible');
+      modal.classList.add('hidden');
+      setTimeout(() => {
+        modal.style.display = 'none';
+        modalImage.src = '';
+        modalOpen = false;
+        modalImageUrl = null;
+      }, 150);
+    }
+
+    // Modal close triggers
+    modalClose.addEventListener('click', closeModal);
+    modalBackdrop.addEventListener('click', closeModal);
+
+    // Escape key closes modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modalOpen) {
+        closeModal();
+      }
+    });
+
+    // ==========================================
+    // Demo: Load sample data for testing
+    // ==========================================
+    function loadSampleData() {
+      mainImages = [
+        { id: 'main-1', url: 'https://img.alicdn.com/imgextra/i1/6000000002749/O1CN01ABC12345ozqZT_!!6000000002749.jpg', checked: true },
+        { id: 'main-2', url: 'https://img.alicdn.com/imgextra/i2/6000000002749/O1CN01DEF67890mnop_!!6000000002749.jpg', checked: true },
+        { id: 'main-3', url: 'https://img.alicdn.com/imgextra/i3/6000000002749/O1CN01GHI11111qrst_!!6000000002749.jpg', checked: true },
+      ];
+      detailImages = [
+        { id: 'detail-1', url: 'https://img.alicdn.com/imgextra/i4/6000000002749/O1CN01JKL22222uvwx_!!6000000002749.jpg', checked: true },
+        { id: 'detail-2', url: 'https://img.alicdn.com/imgextra/i5/6000000002749/O1CN01MNO33333yz12_!!6000000002749.jpg', checked: true },
+      ];
+      renderSection('main', mainImages);
+      renderSection('detail', detailImages);
+      updateCounts();
+    }
+
+    // Load sample data on init
+    loadSampleData();
+  </script>
 </body>
 </html>
