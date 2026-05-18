@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
-last_updated: "2026-05-12T08:20:21.645Z"
+status: milestone_complete
+last_updated: "2026-05-13T09:30:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 5
-  percent: 60
+  completed_phases: 5
+  total_plans: 9
+  completed_plans: 9
+  percent: 100
 ---
 
 # State: chrome-goods-download
@@ -26,19 +26,19 @@ See: .planning/PROJECT.md (updated 2026-05-11 after initialization)
 |---|-------|--------|-------|----------|
 | 1 | Extension Shell | ● | 01-01, 01-02 | 100% |
 | 2 | Platform Detection & Image Extraction | ● | 02-01, 02-02 | 100% |
-| 3 | Side Panel UI | ○ | — | 0% |
-| 4 | Download with JPG Conversion | ○ | — | 0% |
-| 5 | Integration & Testing | ○ | — | 0% |
+| 3 | Side Panel UI | ● | 03-01, 03-02 | 100% |
+| 4 | Download with JPG Conversion | ● | 04-01, 04-02 | 100% |
+| 5 | Integration & Testing | ● | 05-01 | 100% |
 
 ## Current Focus
 
-Phase 2 complete — Platform Detection & Image Extraction implemented. Ready for Phase 3.
+All phases complete — chrome-goods-download v1.0 ready for manual browser testing.
 
 ## Milestones
 
 | Milestone | Target | Status |
 |-----------|--------|--------|
-| v1.0 | All phases complete | ◐ |
+| v1.0 | All phases complete | ● |
 
 ## Quick Tasks Completed
 
@@ -46,3 +46,13 @@ Phase 2 complete — Platform Detection & Image Extraction implemented. Ready fo
 |------|----------|------|--------|
 | 2026-05-11 | execute-phase 1 | Phase 1 Extension Shell (01-01 manifest+icons, 01-02 messaging infrastructure) | Done |
 | 2026-05-12 | execute-phase 2 | Phase 2 Platform Detection & Image Extraction (02-01 detection, 02-02 extraction) | Done |
+| 2026-05-13 | verify-work 3 | Phase 3 Side Panel UI (03-01 UI structure, 03-02 messaging integration) | Done |
+| 2026-05-13 | plan-phase 4 | Phase 4 Download with JPG Conversion (04-01 infrastructure, 04-02 UX polish) | Done |
+| 2026-05-15 | execute-phase 5 | Phase 5 Integration & Testing (05-01 code verification, browser testing notes) | Done |
+
+## Remaining Work
+
+| Task | Notes |
+|------|-------|
+| Manual browser testing | Open real Taobao/Tmall pages, verify all features work end-to-end |
+| Chrome Web Store submission | Package extension as .crx, publish to Web Store |

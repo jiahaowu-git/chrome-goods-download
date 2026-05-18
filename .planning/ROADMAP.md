@@ -101,6 +101,12 @@ Plans:
 3. Zip file downloads with product name as filename
 4. Zip contains only selected (checked) images
 
+**Plans:** 2 plans
+
+Plans:
+- [x] 04-01-PLAN.md - Download infrastructure (JSZip, fetch, canvas conversion, basic zip)
+- [x] 04-02-PLAN.md - UX polish (button disable state, error handling, warning alert)
+
 ---
 
 ## Phase 5: Integration & Testing
@@ -121,10 +127,10 @@ Plans:
 |-------|------|--------------|--------|
 | 1 | Extension Shell | 4 | ● | 2026-05-11 |
 | 2 | Platform Detection & Image Extraction | 6 | ● | 2026-05-12 |
-| 3 | Side Panel UI | 11 | ○ |
-| 4 | Download with JPG Conversion | 6 | ○ |
+| 3 | Side Panel UI | 11 | ● | 2026-05-13 |
+| 4 | Download with JPG Conversion | 6 | ● |
 | 5 | Integration & Testing | 5 | ○ |
 
 ---
 *Roadmap created: 2026-05-11*
-*Last updated: 2026-05-12 after Phase 3 planning*
+*Last updated: 2026-05-13 after Phase 4 execution*

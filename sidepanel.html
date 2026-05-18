@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>下载图片</title>
-  <script src="https://code.iconify.design/2/2.2.0/iconify.min.js"></script>
+  <title>下载商品详情图片</title>
+  <script src="vendor/iconify.min.js"></script>
+  <script src="vendor/jszip.min.js"></script>
+  <script src="vendor/file-saver.min.js"></script>
   <style>
     * {
       margin: 0;
@@ -22,7 +24,7 @@
       display: flex;
       flex-direction: column;
       min-height: 100vh;
-      padding-bottom: 88px;
+      padding-bottom: 136px;
     }
 
     /* Panel Header */
@@ -88,7 +90,8 @@
       transition: max-height 200ms ease-out;
     }
     .section-content.expanded {
-      max-height: 1000px;
+      max-height: none;
+      overflow-y: auto;
     }
 
     /* Image Grid */
@@ -108,7 +111,7 @@
       cursor: pointer;
     }
     .image-item:hover {
-      border-color: #3b82f6;
+      border-color: #f76001;
       transform: scale(1.02);
     }
     .image-item:active {
@@ -129,7 +132,7 @@
       width: 20px;
       height: 20px;
       border-radius: 4px;
-      border: 2px solid #3a3a3a;
+      border: 2px solid #f76001;
       background: transparent;
       display: flex;
       align-items: center;
@@ -138,11 +141,11 @@
       z-index: 2;
     }
     .checkbox:hover {
-      border-color: #5a5a5a;
+      border-color: #d45000;
     }
     .checkbox.checked {
-      background: #3b82f6;
-      border-color: #3b82f6;
+      background: #f76001;
+      border-color: #f76001;
     }
     .checkbox.checked:hover {
       background: #2563eb;
@@ -165,11 +168,41 @@
       padding: 16px;
       background: #1a1a1a;
       border-top: 1px solid #3a3a3a;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 100;
+    }
+    .refresh-btn {
+      width: 100%;
+      height: 40px;
+      background: #3a3a3a;
+      border: none;
+      border-radius: 8px;
+      color: #f5f5f5;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background 150ms ease-out;
+    }
+    .refresh-btn:hover {
+      background: #4a4a4a;
+    }
+    .refresh-btn:active {
+      background: #333;
+    }
+    .refresh-btn .iconify {
+      font-size: 18px;
     }
     .download-btn {
       width: 100%;
       height: 48px;
-      background: #3b82f6;
+      background: #f76001;
       border: none;
       border-radius: 8px;
       color: white;
@@ -184,10 +217,10 @@
       transition: background 150ms ease-out;
     }
     .download-btn:hover {
-      background: #2563eb;
+      background: #d45000;
     }
     .download-btn:active {
-      background: #1d4ed8;
+      background: #b84500;
     }
     .download-btn:disabled {
       opacity: 0.5;
@@ -282,7 +315,7 @@
 <body>
   <div id="app">
     <header class="panel-header">
-      <h1>下载图片</h1>
+      <h1>下载商品详情图片</h1>
       <span class="image-count">已选 <span id="selected-count">0</span> / <span id="total-count">0</span> 张</span>
     </header>
 
@@ -291,7 +324,7 @@
       <div class="section-header" data-section="main" aria-expanded="true">
         <span class="iconify chevron" data-icon="material-symbols:chevron-down"></span>
         <span>主图</span>
-        <span class="count-badge" id="main-count-badge">(0)</span>
+        <span class="count-badge" id="main-count-badge">已选 0 / 0 张</span>
       </div>
       <div class="section-content expanded" id="main-content">
         <div class="image-grid" id="main-grid"></div>
@@ -303,7 +336,7 @@
       <div class="section-header" data-section="detail" aria-expanded="true">
         <span class="iconify chevron" data-icon="material-symbols:chevron-down"></span>
         <span>详情图</span>
-        <span class="count-badge" id="detail-count-badge">(0)</span>
+        <span class="count-badge" id="detail-count-badge">已选 0 / 0 张</span>
       </div>
       <div class="section-content expanded" id="detail-content">
         <div class="image-grid" id="detail-grid"></div>
@@ -312,6 +345,10 @@
   </div>
 
   <footer class="panel-footer">
+    <button class="refresh-btn" id="refresh-btn">
+      <span class="iconify" data-icon="material-symbols:refresh"></span>
+      刷新图片
+    </button>
     <button class="download-btn" id="download-btn" disabled>
       <span class="iconify" data-icon="material-symbols:download"></span>
       一键下载
@@ -329,251 +366,6 @@
     </button>
   </div>
 
-  <script>
-    // ==========================================
-    // TASK 1: Message handling - receive page data from content script
-    // ==========================================
-
-    function requestPageData() {
-      // Request page data from background script which forwards to content script
-      chrome.runtime.sendMessage({ type: 'getPageData' }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error('Failed to request page data:', chrome.runtime.lastError.message);
-        }
-      });
-    }
-
-    function handlePageData(data) {
-      // Check for error state
-      if (data.error) {
-        const mainGrid = document.getElementById('main-grid');
-        const detailGrid = document.getElementById('detail-grid');
-        mainGrid.innerHTML = '<div class="empty-state">无法获取图片：该页面不是商品详情页</div>';
-        detailGrid.innerHTML = '<div class="empty-state">请刷新页面后重试</div>';
-        document.getElementById('main-count-badge').textContent = '(0)';
-        document.getElementById('detail-count-badge').textContent = '(0)';
-        updateCounts();
-        return;
-      }
-
-      // Populate main images
-      mainImages = data.mainImages.map((url, i) => ({
-        id: 'main-' + i,
-        url: url,
-        checked: true
-      }));
-
-      // Populate detail images
-      detailImages = data.detailImages.map((url, i) => ({
-        id: 'detail-' + i,
-        url: url,
-        checked: true
-      }));
-
-      // Render both sections
-      renderSection('main', mainImages);
-      renderSection('detail', detailImages);
-      updateCounts();
-    }
-
-    // Listen for page data responses from content script via background
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.type === 'pageData') {
-        handlePageData(message.data);
-        return true;
-      }
-      return true;
-    });
-
-    // ==========================================
-    // TASK 2a: Initial load - request page data from content script
-    // ==========================================
-    document.addEventListener('DOMContentLoaded', () => {
-      // Request page data immediately on load
-      requestPageData();
-    });
-
-    // ==========================================
-    // TASK 3: Selection counting and download button wiring
-    // ==========================================
-
-    function updateSelectedCount() {
-      const total = mainImages.filter(i => i.checked).length + detailImages.filter(i => i.checked).length;
-      const countEl = document.querySelector('.image-count');
-      if (countEl) {
-        countEl.textContent = total > 0 ? `已选 ${total} 张` : '';
-      }
-      // Update download button state
-      const btn = document.querySelector('.download-btn');
-      if (btn) {
-        btn.disabled = total === 0;
-      }
-    }
-
-    function collectSelectedImages() {
-      const selected = [
-        ...mainImages.filter(i => i.checked),
-        ...detailImages.filter(i => i.checked)
-      ];
-      return selected;
-    }
-
-    // Wire download button click to dispatch downloadImages event
-    document.querySelector('.download-btn').addEventListener('click', () => {
-      const selected = collectSelectedImages();
-      if (selected.length === 0) return;
-      // Dispatch download event (Phase 4 implementation)
-      window.dispatchEvent(new CustomEvent('downloadImages', {
-        detail: { images: selected, pageTitle: document.title }
-      }));
-    });
-
-    // ==========================================
-    // TASK 3: Collapsible sections with chevron rotation
-    // ==========================================
-    let isMainSectionOpen = true;
-    let isDetailSectionOpen = true;
-
-    const mainSectionHeader = document.querySelector('[data-section="main"]');
-    const detailSectionHeader = document.querySelector('[data-section="detail"]');
-    const mainContent = document.getElementById('main-content');
-    const detailContent = document.getElementById('detail-content');
-
-    function toggleSection(section) {
-      if (section === 'main') {
-        isMainSectionOpen = !isMainSectionOpen;
-        mainSectionHeader.setAttribute('aria-expanded', isMainSectionOpen);
-        mainContent.classList.toggle('expanded', isMainSectionOpen);
-        mainSectionHeader.querySelector('.chevron').classList.toggle('collapsed', !isMainSectionOpen);
-      } else {
-        isDetailSectionOpen = !isDetailSectionOpen;
-        detailSectionHeader.setAttribute('aria-expanded', isDetailSectionOpen);
-        detailContent.classList.toggle('expanded', isDetailSectionOpen);
-        detailSectionHeader.querySelector('.chevron').classList.toggle('collapsed', !isDetailSectionOpen);
-      }
-    }
-
-    mainSectionHeader.addEventListener('click', () => toggleSection('main'));
-    detailSectionHeader.addEventListener('click', () => toggleSection('detail'));
-
-    // ==========================================
-    // TASK 3: Image grid rendering with checkboxes
-    // ==========================================
-    let mainImages = [];
-    let detailImages = [];
-
-    function updateCounts() {
-      const mainChecked = mainImages.filter(img => img.checked).length;
-      const detailChecked = detailImages.filter(img => img.checked).length;
-      const totalSelected = mainChecked + detailChecked;
-      const totalImages = mainImages.length + detailImages.length;
-
-      document.getElementById('selected-count').textContent = totalSelected;
-      document.getElementById('total-count').textContent = totalImages;
-      document.getElementById('main-count-badge').textContent = `(${mainImages.length})`;
-      document.getElementById('detail-count-badge').textContent = `(${detailImages.length})`;
-
-      const downloadBtn = document.getElementById('download-btn');
-      downloadBtn.disabled = totalSelected === 0;
-    }
-
-    function createImageItem(image, section) {
-      const item = document.createElement('div');
-      item.className = 'image-item';
-      item.dataset.id = image.id;
-
-      const img = document.createElement('img');
-      img.src = image.url;
-      img.alt = 'Product image';
-      img.loading = 'lazy';
-      img.onerror = function() {
-        this.src = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%232a2a2a%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23666%22 font-size=%2212%22>!</text></svg>';
-      };
-
-      const checkbox = document.createElement('div');
-      checkbox.className = 'checkbox' + (image.checked ? ' checked' : '');
-      checkbox.dataset.id = image.id;
-      checkbox.innerHTML = '<span class="iconify iconify-check" data-icon="material-symbols:check"></span>';
-
-      // Checkbox click - toggle selection without opening modal
-      checkbox.addEventListener('click', (e) => {
-        e.stopPropagation();
-        image.checked = !image.checked;
-        checkbox.classList.toggle('checked', image.checked);
-        updateCounts();
-      });
-
-      // Image item click - open modal (not when clicking checkbox)
-      item.addEventListener('click', (e) => {
-        if (e.target.closest('.checkbox')) return;
-        openModal(image.url);
-      });
-
-      item.appendChild(img);
-      item.appendChild(checkbox);
-      return item;
-    }
-
-    function renderSection(section, images) {
-      const gridId = section === 'main' ? 'main-grid' : 'detail-grid';
-      const grid = document.getElementById(gridId);
-      grid.innerHTML = '';
-
-      if (images.length === 0) {
-        grid.innerHTML = '<div class="empty-state">暂无图片</div>';
-        return;
-      }
-
-      images.forEach(image => {
-        grid.appendChild(createImageItem(image, section));
-      });
-    }
-
-    // ==========================================
-    // TASK 4: Modal open/close interactions
-    // ==========================================
-    let modalOpen = false;
-    let modalImageUrl = null;
-
-    const modal = document.getElementById('modal');
-    const modalImage = document.getElementById('modal-image');
-    const modalBackdrop = document.getElementById('modal-backdrop');
-    const modalClose = document.getElementById('modal-close');
-
-    function openModal(imageUrl) {
-      modalOpen = true;
-      modalImageUrl = imageUrl;
-      modalImage.src = imageUrl;
-      modal.style.display = 'flex';
-      // Force reflow for animation
-      modal.offsetHeight;
-      modal.classList.remove('hidden');
-      modal.classList.add('visible');
-    }
-
-    function closeModal() {
-      if (!modalOpen) return;
-      modal.classList.remove('visible');
-      modal.classList.add('hidden');
-      setTimeout(() => {
-        modal.style.display = 'none';
-        modalImage.src = '';
-        modalOpen = false;
-        modalImageUrl = null;
-      }, 150);
-    }
-
-    // Modal close triggers
-    modalClose.addEventListener('click', closeModal);
-    modalBackdrop.addEventListener('click', closeModal);
-
-    // Escape key closes modal
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && modalOpen) {
-        closeModal();
-      }
-    });
-  </script>
-  </script>
+  <script src="sidepanel.js"></script>
 </body>
 </html>

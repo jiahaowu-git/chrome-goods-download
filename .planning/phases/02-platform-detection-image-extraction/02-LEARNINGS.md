@@ -4,13 +4,11 @@ phase_name: "Platform Detection & Image Extraction"
 project: "chrome-goods-download"
 generated: "2026-05-12"
 counts:
-  decisions: 8
-  lessons: 3
+  decisions: 6
+  lessons: 5
   patterns: 4
   surprises: 2
-missing_artifacts:
-  - "02-VERIFICATION.md"
-  - "02-UAT.md"
+missing_artifacts: []
 ---
 
 # Phase 2 Learnings: Platform Detection & Image Extraction
@@ -18,141 +16,141 @@ missing_artifacts:
 ## Decisions
 
 ### Detection triggered by message receipt, not DOMContentLoaded
-Detection (detectPlatform, isDetailPage) is triggered when GET_PAGE_DATA message is received, not when the page DOM loads.
+Platform detection and image extraction are triggered when the side panel sends GET_PAGE_DATA message, not on page DOMContentLoaded event.
 
-**Rationale:** DOMContentLoaded was removed. Detection should happen when the side panel requests data, not when the page loads. document_idle run_at in manifest.json is sufficient for page load execution.
+**Rationale:** More reliable architecture — extraction only happens when the side panel actually requests data, ensuring the service worker is ready to receive results. Avoids race conditions where content script loads before background is ready.
 **Source:** 02-SUMMARY.md
 
 ---
 
-### 200ms delay before extraction for lazy content
-A 200ms setTimeout delays extraction after detecting a valid detail page.
+### 200ms delay before extraction for lazy-loaded content
+A 200ms setTimeout delays extraction after valid page detection.
 
-**Rationale:** Alibaba detail pages use lazy-loaded content that requires time to render before extraction can succeed.
-**Source:** 02-01-PLAN.md
+**Rationale:** Taobao/Tmall pages load product images lazily — the DOM may not have all image URLs available immediately on page load. The delay allows lazy-load handlers to populate image data before extraction runs.
+**Source:** 02-SUMMARY.md, 02-01-PLAN.md
 
 ---
 
-### Separate arrays maintained for mainImages vs detailImages
-mainImages and detailImages are stored in separate arrays rather than merged.
+### Separate arrays for mainImages vs detailImages
+Two distinct arrays are maintained throughout extraction, rather than a single combined array.
 
-**Rationale:** Allows users to selectively download only main product images or include all detail/description images.
+**Rationale:** Required by Phase 3 UI specification (two-section display: 主图 / 详情图). Allows UI to render sections independently and users to select images from each group separately.
 **Source:** 02-SUMMARY.md
 
 ---
 
-### Protocol-less URLs normalized by prepending https:
-normalizeImageUrl() adds 'https:' prefix to URLs starting with '//'.
+### Protocol-less URLs normalized with https: prefix
+normalizeImageUrl() prepends 'https:' to URLs starting with '//'.
 
-**Rationale:** Protocol-less URLs (//cdn.example.com/image.jpg) need an explicit protocol to work in all contexts.
-**Source:** 02-SUMMARY.md
+**Rationale:** Protocol-relative URLs (//example.com/image.jpg) fail in certain browser contexts and when passed through canvas for conversion. Normalizing to https: ensures consistent handling across all operations.
+**Source:** 02-SUMMARY.md, 02-02-PLAN.md
 
 ---
 
 ### 4-strategy fallback chain for main image extraction
-Main images are extracted using a fallback chain: g_Config → TB.Config → g_fixedBigPic → __CONFIG__.
+Main images are extracted by trying four different global variable sources in sequence: g_Config → TB.Config → g_fixedBigPic → __CONFIG__.
 
-**Rationale:** Different Alibaba/Taobao page variants use different global variable names to store the same auction image data.
-**Source:** 02-02-PLAN.md
-
----
-
-### 6-selector fallback chain for detail image extraction
-Detail images are extracted using: #description → .description → [class*="description"] → #J_DepictContainer → .tb-detail-brief → #module_promo_ensure_item_detail.
-
-**Rationale:** Different page templates use different container elements for the product description section.
-**Source:** 02-02-SUMMARY.md
+**Rationale:** Different Taobao/Tmall page variations (A/B tests, different rendering pipelines, older page versions) use different JavaScript globals to hold product image data. No single source works across all pages, so a fallback chain maximizes extraction coverage.
+**Source:** 02-02-SUMMARY.md, 02-02-PLAN.md
 
 ---
 
-### Lazy-load image detection via three attribute fallbacks
-extractDetailImages checks img.dataset.src first, then data_lazy attribute, then img.src.
+### 6-selector fallback chain for detail images
+Detail images are extracted by trying six different CSS selectors to find the description container.
 
-**Rationale:** Alibaba pages use different lazy-loading mechanisms depending on page template and render state.
-**Source:** 02-SUMMARY.md
-
----
-
-### Set-based deduplication preserving insertion order
-Images are deduplicated using [...new Set(images)] rather than filtering.
-
-**Rationale:** Same image URL may appear in multiple data sources; Set removes duplicates while preserving first-seen order.
-**Source:** 02-SUMMARY.md
+**Rationale:** The description/详情图 container has variable selectors across Taobao/Tmall page versions: #description, .description, [class*="description"], #J_DepictContainer, .tb-detail-brief, #module_promo_ensure_item_detail. A fallback chain ensures at least one selector matches.
+**Source:** 02-02-SUMMARY.md, 02-02-PLAN.md
 
 ---
 
 ## Lessons
 
-### Not all Alibaba CDN URLs are valid product images
-Learned that URL validation must filter out tracking pixels (pixel, 1.gif, blank.gif) and data:image URIs.
+### Different lazy-load mechanisms require multi-attribute fallback
+Detail images use multiple lazy-load mechanisms: img.dataset.src (primary), data_lazy attribute (secondary), and img.src (fallback).
 
-**Context:** isValidImageUrl() was added specifically to exclude non-product images that appear in the DOM but are not actual product images.
-**Source:** 02-SUMMARY.md
-
----
-
-### Lazy-loaded images require multiple attribute checks
-Each lazy-loaded image may use dataset.src, data_lazy, or direct src depending on render state.
-
-**Context:** A single selector strategy is insufficient for detail image extraction across different Alibaba page templates.
-**Source:** 02-SUMMARY.md
+**Context:** Not all lazy-loaded images use the same attribute. Some images load via dataset.src, others set data_lazy, and some are direct src. The extraction must check all three to avoid missing images.
+**Source:** 02-02-SUMMARY.md
 
 ---
 
-### Deduplication is essential due to overlapping sources
-Same images appear in multiple global variables (auctionImages and itemPicMaps both present on some pages).
+### CDN domain filtering is essential for image validation
+isValidImageUrl() validates that image URLs come from Alibaba CDN domains (alicdn.com, alibaba.com, taobao.com, tmall.com) and rejects tracking pixels.
 
-**Context:** Without deduplication, users would see duplicate images in the download list.
-**Source:** 02-SUMMARY.md
+**Context:** Taobao/Tmall pages include many non-product images: tracking pixels (pixel, 1.gif), blank.gif icons, and images from third-party domains. CDN-based filtering combined with pixel exclusion produces reliable image extraction.
+**Source:** 02-02-PLAN.md, 02-02-SUMMARY.md
+
+---
+
+### Set deduplication preserves insertion order with [...new Set()]
+Using [...new Set(images)] for deduplication removes duplicates while preserving the order images were discovered.
+
+**Context:** Multiple extraction strategies (4 for main images) can return the same URL. Set deduplication ensures unique images without scrambling the original sequence, which matters for UI display order and user expectation.
+**Source:** 02-02-SUMMARY.md
+
+---
+
+### sendPageDataToBackground() became unused after refactor
+The existing sendPageDataToBackground() function was not removed in 02-01 and remains in content.js unused.
+
+**Context:** After updating the message listener to use chrome.runtime.sendMessage directly and removing DOMContentLoaded, sendPageDataToBackground() was no longer called. It was left in the codebase as dead code during Phase 2 execution. Should be removed as cleanup.
+**Source:** 02-01-SUMMARY.md
+
+---
+
+### Platform detection validates detail page before extraction
+The detection flow checks both platform (taobao/tmall) AND detail page pattern (item.htm?id=, /i/, detail.htm) before attempting extraction.
+
+**Context:** Users can open the extension on any Taobao/Tmall page, not just product pages. Without detail page validation, extraction would run on search results,店铺 pages, etc. and return empty/invalid results.
+**Source:** 02-01-PLAN.md
 
 ---
 
 ## Patterns
 
-### Fallback chain pattern for configuration access
-Multiple strategies tried in sequence until one returns non-empty results.
+### Strategy fallback chain
+When multiple potential sources exist for the same data, try them in order until one yields results.
 
-**When to use:** When different page variants store the same data under different global variable names or structures.
-**Source:** 02-02-SUMMARY.md
-
----
-
-### Selector fallback chain pattern
-Multiple CSS selectors tried sequentially until a DOM element is found.
-
-**When to use:** When the same functional container exists across different page templates but uses different class names or IDs.
+**When to use:** Data may be available from different sources depending on page version, A/B test group, or platform variant. Stop at first non-empty result.
 **Source:** 02-SUMMARY.md
 
 ---
 
-### 200ms setTimeout for lazy content
-Short delay after page detection to allow DOM content to fully render.
+### Selector fallback chain for DOM queries
+When the target DOM element has variable selectors, try multiple selector patterns until one matches.
 
-**When to use:** When extracting content from pages with lazy-loaded elements that aren't immediately available on page load.
+**When to use:** Websites use different class/ID names across versions or platforms. Query selectors in order until a match is found, then stop.
+**Source:** 02-02-SUMMARY.md
+
+---
+
+### Async message response with return true
+Chrome message listeners must return true when sendResponse is called asynchronously.
+
+**When to use:** The message listener needs to send a response after the current function returns (async operation). Return true tells Chrome the response will come later via sendResponse.
 **Source:** 02-01-PLAN.md
 
 ---
 
-### Message-based detection flow
-Content script remains passive until explicitly requested via message.
+### Set-based deduplication preserving order
+Use [...new Set(array)] instead of [...new Set(array).values()] to deduplicate while preserving insertion order.
 
-**When to use:** When content script should only run in response to side panel/user action, not on every page load.
+**When to use:** Need unique items from an ordered collection where subsequent occurrences should be removed but first-seen order must be maintained.
 **Source:** 02-SUMMARY.md
 
 ---
 
 ## Surprises
 
-### Wide variance in global variable naming for image data
-Pages use g_Config, TB.Config, g_fixedBigPic, and __CONFIG__ interchangeably for the same image data.
+### sendPageDataToBackground() function left unused after detection refactor
+The function sendPageDataToBackground() existed in content.js before Phase 2 but was not removed when the detection flow was updated to use chrome.runtime.sendMessage directly.
 
-**Impact:** Required implementing a 4-strategy fallback chain to ensure extraction works across page variants.
-**Source:** 02-02-SUMMARY.md
+**Impact:** Dead code remains in content.js. Minor - the function is harmless but serves no purpose and should be cleaned up before Phase 3.
+**Source:** 02-01-SUMMARY.md
 
 ---
 
-### Description container position varies significantly
-No single selector reliably finds the detail image container across all page templates.
+### Research phase identified needed 200ms delay not explicit in initial plan
+The 02-RESEARCH.md investigation revealed that Taobao/Tmall pages require a delay for lazy content loading. The plan was updated to include 200ms setTimeout, but the implementation complexity was underestimated.
 
-**Impact:** Required 6 different selectors with varying specificity to handle different page layouts.
-**Source:** 02-02-SUMMARY.md
+**Impact:** The 200ms delay is a conservative estimate that works in practice, but may need adjustment for very slow connections or particularly heavy pages. Images may be missed if the delay is insufficient.
+**Source:** 02-RESEARCH.md (referenced in 02-01-PLAN.md, 02-SUMMARY.md)

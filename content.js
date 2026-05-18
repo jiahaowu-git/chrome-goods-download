@@ -1,4 +1,5 @@
-console.log('chrome-goods-download content script injected');
+window.__chromeGoodsDownloadLoaded = true;
+console.log('[content] chrome-goods-download content script loaded');
 
 // Message types
 const MESSAGE_TYPES = {
@@ -57,27 +58,80 @@ function normalizeImageUrl(url) {
 }
 
 /**
- * Check if URL is a valid product image (exclude tracking pixels, icons)
+ * Check if URL is a valid product image (exclude tracking pixels, icons, placeholders)
  * @param {string} url
  * @returns {boolean}
  */
 function isValidImageUrl(url) {
   if (!url || typeof url !== 'string') return false;
-  // Exclude tracking pixels and icons
   const lowerUrl = url.toLowerCase();
+  // Exclude tracking pixels and icons
   if (lowerUrl.includes('pixel') || lowerUrl.includes('1.gif') ||
-      lowerUrl.includes('data:image') || lowerUrl.includes('blank.gif')) {
+      lowerUrl.includes('data:image') || lowerUrl.includes('blank.gif') ||
+      lowerUrl.includes('data:image/svg')) {
     return false;
   }
-  // Must be from known Alibaba CDN domains
-  if (!lowerUrl.includes('alicdn.com') && !lowerUrl.includes('alibaba.com') &&
-      !lowerUrl.includes('taobao.com') && !lowerUrl.includes('tmall.com')) {
-    // Allow if it's a full http(s) URL we can't verify, but reject obvious non-CDN
-    if (lowerUrl.startsWith('http') && !lowerUrl.includes('img')) {
-      return false;
-    }
+  // Exclude Alibaba placeholder images
+  if (lowerUrl.includes('g.alicdn.com/s.gif') || lowerUrl.includes('amos.aliyun') ||
+      lowerUrl.includes('a.aliyun') || lowerUrl.includes('log.aliyun')) {
+    return false;
+  }
+  // Must be http, https, or protocol-less URL (//)
+  if (!lowerUrl.startsWith('http://') && !lowerUrl.startsWith('https://') && !lowerUrl.startsWith('//')) {
+    return false;
   }
   return true;
+}
+
+/**
+ * Show notification bar on the page
+ * @param {string} message
+ * @param {string} type - 'info' | 'success' | 'error'
+ */
+function showNotification(message, type = 'info') {
+  const existing = document.getElementById('__chrome-goods-download-notify');
+  if (existing) existing.remove();
+
+  const colors = {
+    info: { bg: '#3b82f6', text: '#fff' },
+    success: { bg: '#22c55e', text: '#fff' },
+    error: { bg: '#ef4444', text: '#fff' }
+  };
+  const color = colors[type] || colors.info;
+
+  const bar = document.createElement('div');
+  bar.id = '__chrome-goods-download-notify';
+  bar.innerHTML = `
+    <style>
+      #__chrome-goods-download-notify {
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 999999;
+        padding: 12px 24px;
+        background: ${color.bg};
+        color: ${color.text};
+        border-radius: 8px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        animation: __notifySlideIn 0.2s ease-out;
+      }
+      @keyframes __notifySlideIn {
+        from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+        to { opacity: 1; transform: translateX(-50%) translateY(0); }
+      }
+    </style>
+    <span>${message}</span>
+  `;
+  document.body.appendChild(bar);
+}
+
+function hideNotification() {
+  const bar = document.getElementById('__chrome-goods-download-notify');
+  if (bar) bar.remove();
 }
 
 /**
@@ -87,91 +141,16 @@ function isValidImageUrl(url) {
 function extractMainImages() {
   const images = [];
 
-  // Strategy 1: g_Config (primary on most pages)
-  if (window.g_Config) {
-    const config = window.g_Config;
-
-    // auctionImages - direct array of URLs
-    if (config.auctionImages && Array.isArray(config.auctionImages)) {
-      config.auctionImages.forEach(url => {
-        if (typeof url === 'string' && isValidImageUrl(url)) {
-          images.push(normalizeImageUrl(url));
-        }
-      });
+  // Main images: img with class containing "thumbnailPic"
+  const mainImgElements = document.querySelectorAll('img[class*="thumbnailPic"]');
+  mainImgElements.forEach(img => {
+    // Use data-src first (if available), then src
+    const url = img.dataset.src || img.src;
+    if (url && isValidImageUrl(url)) {
+      images.push(normalizeImageUrl(url));
     }
+  });
 
-    // itemPicMaps - object with numeric keys
-    if (config.itemPicMaps && typeof config.itemPicMaps === 'object') {
-      Object.values(config.itemPicMaps).forEach(value => {
-        if (typeof value === 'string' && isValidImageUrl(value)) {
-          images.push(normalizeImageUrl(value));
-        }
-      });
-    }
-
-    // Nested: itemInfoModel.itemImage or itemInfoModel.pictures
-    if (config.itemInfoModel) {
-      const itemInfo = config.itemInfoModel;
-      if (itemInfo.itemImage) {
-        const arr = Array.isArray(itemInfo.itemImage) ? itemInfo.itemImage : [itemInfo.itemImage];
-        arr.forEach(url => {
-          if (typeof url === 'string' && isValidImageUrl(url)) {
-            images.push(normalizeImageUrl(url));
-          }
-        });
-      }
-      if (itemInfo.pictures && Array.isArray(itemInfo.pictures)) {
-        itemInfo.pictures.forEach(url => {
-          if (typeof url === 'string' && isValidImageUrl(url)) {
-            images.push(normalizeImageUrl(url));
-          }
-        });
-      }
-    }
-  }
-
-  // Strategy 2: TB.Config (older Taobao pages)
-  if (window.TB && window.TB.Config && images.length === 0) {
-    const config = TB.Config;
-    if (config.auctionImages && Array.isArray(config.auctionImages)) {
-      config.auctionImages.forEach(url => {
-        if (typeof url === 'string' && isValidImageUrl(url)) {
-          images.push(normalizeImageUrl(url));
-        }
-      });
-    }
-    if (config.itemPicMaps && typeof config.itemPicMaps === 'object') {
-      Object.values(config.itemPicMaps).forEach(value => {
-        if (typeof value === 'string' && isValidImageUrl(value)) {
-          images.push(normalizeImageUrl(value));
-        }
-      });
-    }
-  }
-
-  // Strategy 3: g_fixedBigPic (sometimes used for main image)
-  if (window.g_fixedBigPic && images.length === 0) {
-    const arr = Array.isArray(g_fixedBigPic) ? g_fixedBigPic : [g_fixedBigPic];
-    arr.forEach(url => {
-      if (typeof url === 'string' && isValidImageUrl(url)) {
-        images.push(normalizeImageUrl(url));
-      }
-    });
-  }
-
-  // Strategy 4: __CONFIG__ (alternative naming)
-  if (window.__CONFIG__ && images.length === 0) {
-    const config = window.__CONFIG__;
-    if (config.auctionImages && Array.isArray(config.auctionImages)) {
-      config.auctionImages.forEach(url => {
-        if (typeof url === 'string' && isValidImageUrl(url)) {
-          images.push(normalizeImageUrl(url));
-        }
-      });
-    }
-  }
-
-  // Deduplicate while preserving order
   return [...new Set(images)];
 }
 
@@ -182,72 +161,96 @@ function extractMainImages() {
 function extractDetailImages() {
   const images = [];
 
-  // Common description container selectors (try in order)
-  const selectors = [
-    '#description',
-    '.description',
-    '[class*="description"]',
-    '#J_DepictContainer',
-    '.tb-detail-brief',
-    '#module_promo_ensure_item_detail'
-  ];
+  // Detail images: img with class containing "descV8-singleImage-image" AND data-name="singleImage"
+  let detailImgElements = document.querySelectorAll('img[class*="descV8-singleImage-image"][data-name="singleImage"]');
 
-  let descContainer = null;
-  for (const sel of selectors) {
-    descContainer = document.querySelector(sel);
-    if (descContainer) break;
-  }
-
-  if (descContainer) {
-    // Extract from data-src first (lazy-loaded), then data_lazy, then src
-    const imgElements = descContainer.querySelectorAll('img');
-    imgElements.forEach(img => {
-      const url = img.dataset.src || img.getAttribute('data_lazy') || img.src;
-      if (url && isValidImageUrl(url)) {
-        images.push(normalizeImageUrl(url));
+  // If not found in main document, try iframes
+  if (detailImgElements.length === 0) {
+    const iframes = document.querySelectorAll('iframe');
+    for (const iframe of iframes) {
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (iframeDoc) {
+          const iframeImgs = iframeDoc.querySelectorAll('img[class*="descV8-singleImage-image"][data-name="singleImage"]');
+          if (iframeImgs.length > 0) {
+            detailImgElements = iframeImgs;
+            break;
+          }
+        }
+      } catch (e) {
+        // Cross-origin iframe, cannot access
       }
-    });
+    }
   }
 
-  // Deduplicate
+  detailImgElements.forEach(img => {
+    // Priority: data-src > src (since src might be placeholder)
+    const url = img.dataset.src || img.src;
+    // Skip if URL is the placeholder
+    if (!url || url.includes('g.alicdn.com/s.gif')) return;
+    if (url && isValidImageUrl(url)) {
+      images.push(normalizeImageUrl(url));
+    }
+  });
+
   return [...new Set(images)];
 }
 
 /**
- * Extract full page data including images
- * @returns {Object} Page data structure with platform, mainImages, detailImages
+ * Extract product title from page
+ * @returns {string}
  */
-function extractPageData() {
+function extractProductTitle() {
+  // Try the mainTitle span first
+  const titleSpan = document.querySelector('span.mainTitle--R75fTcZL');
+  if (titleSpan) {
+    return titleSpan.textContent.trim() || titleSpan.getAttribute('title') || '';
+  }
+  // Fallback to page title
+  return document.title || '';
+}
+
+/**
+ * Extract page data (main and detail images)
+ * @returns {Promise<{platform: string, mainImages: string[], detailImages: string[], pageTitle: string, url: string, error: boolean}>}
+ */
+async function extractPageData() {
+  showNotification('正在识别图片...', 'info');
+
   const platform = detectPlatform();
+
+  // Small delay to let images render
+  await new Promise(resolve => setTimeout(resolve, 300));
+
   const mainImages = extractMainImages();
   const detailImages = extractDetailImages();
+  const productTitle = extractProductTitle();
+
+  showNotification(`识别完成：主图 ${mainImages.length} 张，详情图 ${detailImages.length} 张`, 'success');
+  setTimeout(hideNotification, 2000);
 
   return {
     platform,
     mainImages,
     detailImages,
+    productTitle,
     pageTitle: document.title,
     url: window.location.href,
     error: false
   };
 }
 function sendPageDataToBackground() {
-  const pageData = extractPageData();
-  chrome.runtime.sendMessage(
-    { type: MESSAGE_TYPES.PAGE_DATA, data: pageData },
-    (response) => {
-      if (chrome.runtime.lastError) {
-        console.error('Failed to send page data:', chrome.runtime.lastError.message);
-      } else {
-        console.log('Page data sent to background:', response);
-      }
-    }
-  );
+  extractPageData().then((pageData) => {
+    chrome.runtime.sendMessage(
+      { type: MESSAGE_TYPES.PAGE_DATA, data: pageData },
+      () => {}
+    );
+  });
 }
 
 // Listen for messages from background or side panel
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('Content script received message:', message);
+  console.log('[chrome-goods-download] Content script received message:', message);
 
   if (message.type === MESSAGE_TYPES.GET_PAGE_DATA) {
     const platform = detectPlatform();
@@ -264,16 +267,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     }
 
-    // Page is valid — extract data after short delay for lazy content
-    setTimeout(() => {
-      const pageData = extractPageData();
+    // Page is valid — extract images
+    setTimeout(async () => {
+      const pageData = await extractPageData();
+      console.log('[chrome-goods-download] Extracted pageData:', pageData.mainImages.length, 'main images,', pageData.detailImages.length, 'detail images');
       chrome.runtime.sendMessage(
         { type: MESSAGE_TYPES.PAGE_DATA, data: pageData },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            console.error('Failed to send page data:', chrome.runtime.lastError.message);
-          }
-        }
+        () => {}
       );
     }, 200);
 
